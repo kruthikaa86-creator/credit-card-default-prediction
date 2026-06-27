@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Credit Default Risk Predictor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+    .header {
+      background: linear-gradient(135deg, #1a1f2e 0%, #16213e 50%, #0f3460 100%);
+      padding: 24px 32px 18px; border-bottom: 1px solid #2d3748;
+    }
+    .header-top { display: flex; align-items: center; gap: 14px; margin-bottom: 5px; }
+    .logo-circle {
+      width: 44px; height: 44px; border-radius: 50%; background: #3182ce;
+      display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+    }
+    .header h1 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    .badge {
+      display: inline-block; background: #1a365d; color: #63b3ed; font-size: 11px;
+      padding: 3px 10px; border-radius: 20px; border: 1px solid #2b6cb0;
+      margin-left: 8px; font-weight: 500; vertical-align: middle;
+    }
+    .header p { font-size: 13px; color: #718096; margin-left: 58px; }
+
+    .main { display: grid; grid-template-columns: 1fr 340px; min-height: calc(100vh - 108px); }
+    .left  { padding: 24px 28px; border-right: 1px solid #2d3748; }
+    .right { padding: 24px; background: #0d1117; }
+
+    .section-title {
+      font-size: 10px; font-weight: 700; color: #718096;
+      letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 14px;
+    }
+
+    .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 22px; }
+    .stat-card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; padding: 14px 16px; }
+    .stat-card .lbl { font-size: 11px; color: #718096; margin-bottom: 5px; }
+    .stat-card .val { font-size: 22px; font-weight: 700; color: #63b3ed; }
+    .stat-card .sub { font-size: 11px; color: #48bb78; margin-top: 3px; }
+
+    .pipeline { display: flex; align-items: center; gap: 0; margin-bottom: 22px; overflow-x: auto; padding-bottom: 2px; }
+    .pipe-step {
+      background: #1e2a3a; border: 1px solid #3182ce; border-radius: 7px;
+      padding: 7px 11px; font-size: 11px; color: #63b3ed; white-space: nowrap; flex-shrink: 0; font-weight: 500;
+    }
+    .pipe-arrow { color: #3182ce; margin: 0 5px; flex-shrink: 0; font-size: 14px; }
+
+    .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+    .feature-field {
+      background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 9px 13px;
+      transition: border-color 0.2s;
+    }
+    .feature-field:focus-within { border-color: #3182ce; background: #1e2a3a; }
+    .feature-field label {
+      display: block; font-size: 10px; color: #718096; font-weight: 600;
+      letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .feature-field input {
+      width: 100%; background: transparent; border: none; outline: none;
+      font-size: 14px; color: #e2e8f0; font-family: inherit;
+    }
+
+    .predict-btn {
+      width: 100%; padding: 14px; background: #3182ce; color: #fff;
+      border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
+      cursor: pointer; letter-spacing: 0.3px; transition: background 0.2s;
+    }
+    .predict-btn:hover { background: #2b6cb0; }
+    .predict-btn:active { transform: scale(0.99); }
+    .predict-btn:disabled { background: #2d3748; cursor: not-allowed; }
+    .reset-btn {
+      width: 100%; padding: 10px; background: transparent; color: #718096;
+      border: 1px solid #2d3748; border-radius: 10px; font-size: 13px;
+      cursor: pointer; margin-top: 10px; transition: all 0.2s;
+    }
+    .reset-btn:hover { color: #e2e8f0; border-color: #4a5568; }
+
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 22px; }
+    .result-badge {
+      text-align: center; padding: 10px 32px; border-radius: 24px;
+      font-size: 18px; font-weight: 800; letter-spacing: 1px; margin-top: 10px;
+    }
+    .result-badge.neutral { background: #1a1f2e; color: #718096; border: 1.5px solid #2d3748; }
+    .result-badge.low     { background: #1c4532; color: #48bb78; border: 1.5px solid #276749; }
+    .result-badge.high    { background: #4a1212; color: #fc8181; border: 1.5px solid #c53030; }
+    .prob-row { display: flex; justify-content: center; gap: 28px; margin-top: 12px; }
+    .prob-item { text-align: center; }
+    .prob-item .plbl { font-size: 11px; color: #718096; margin-bottom: 3px; }
+    .prob-item .pval { font-size: 22px; font-weight: 700; }
+    .prob-item .pval.low-c  { color: #48bb78; }
+    .prob-item .pval.high-c { color: #fc8181; }
+
+    .divider { height: 1px; background: #2d3748; margin: 20px 0; }
+
+    .imp-bar-wrap { margin-bottom: 9px; }
+    .imp-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: #a0aec0; margin-bottom: 4px; }
+    .imp-bar-bg { height: 6px; background: #1a1f2e; border-radius: 3px; overflow: hidden; }
+    .imp-bar-fill { height: 100%; border-radius: 3px; background: #3182ce; transition: width 0.8s ease; }
+
+    .model-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .info-pill { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 10px 12px; }
+    .info-pill .k { font-size: 10px; color: #718096; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 3px; }
+    .info-pill .v { font-size: 13px; font-weight: 600; color: #63b3ed; }
+
+    .chart-card {
+      background: #141a2a; border: 1px solid #2d3748; border-radius: 12px; padding: 20px;
+    }
+    .chart-card h3 { font-size: 13px; font-weight: 600; color: #a0aec0; margin-bottom: 3px; }
+    .chart-card p  { font-size: 11px; color: #718096; margin-bottom: 14px; }
+    .chart-legend  { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; font-size: 12px; color: #a0aec0; }
+    .chart-legend span { display: flex; align-items: center; gap: 5px; }
+    .chart-legend i { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; display: inline-block; }
+
+    .conf-tab {
+      padding: 5px 13px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid #2d3748; color: #718096;
+      background: transparent; transition: all 0.2s; font-family: inherit;
+    }
+    .conf-tab.active { background: #3182ce; border-color: #3182ce; color: #fff; }
+
+    .error-box {
+      display: none; background: #2d1515; border: 1px solid #c53030;
+      border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #fc8181; margin-top: 10px;
+    }
+
+    @media (max-width: 900px) {
+      .main { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .right { border-top: 1px solid #2d3748; }
+    }
+    @media (max-width: 540px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .charts-two-col { grid-template-columns: 1fr !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="header-top">
+    <div class="logo-circle">&#128200;</div>
+    <h1>Credit Default Risk Predictor <span class="badge">XGBoost</span></h1>
+  </div>
+  <p>Final Year Project &nbsp;&middot;&nbsp; ML-powered financial risk assessment &nbsp;&middot;&nbsp; Trained on synthetic trading data</p>
+</div>
+
+<div class="main">
+
+  <!-- ══ LEFT PANEL ══ -->
+  <div class="left">
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="lbl">Training samples</div>
+        <div class="val">5,000</div>                          <!-- CHANGED from 4,981 -->
+        <div class="sub">&#8679; credit customers</div>       <!-- CHANGED -->
+      </div>
+      <div class="stat-card">
+        <div class="lbl">ROC-AUC score</div>
+        <div class="val">0.7701</div>                         <!-- CHANGED from 0.5037 -->
+        <div class="sub">Strong predictive signal</div>       <!-- CHANGED -->
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Features used</div>
+        <div class="val">12</div>                             <!-- CHANGED from 17 -->
+        <div class="sub">Credit indicators</div>              <!-- CHANGED -->
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Class balance</div>
+        <div class="val">94/6</div>                           <!-- CHANGED from 50/50 -->
+        <div class="sub">&#10003; SMOTE applied</div>         <!-- CHANGED -->
+      </div>
+    </div>
+
+    <!-- Pipeline strip -->
+    <div class="pipeline">
+      <div class="pipe-step">1. Load CSV</div>
+      <div class="pipe-arrow">&#8594;</div>
+      <div class="pipe-step">2. Clean data</div>
+      <div class="pipe-arrow">&#8594;</div>
+      <div class="pipe-step">3. StandardScaler</div>
+      <div class="pipe-arrow">&#8594;</div>
+      <div class="pipe-step">4. XGBoost train</div>
+      <div class="pipe-arrow">&#8594;</div>
+      <div class="pipe-step">5. Evaluate</div>
+      <div class="pipe-arrow">&#8594;</div>
+      <div class="pipe-step">6. Flask API</div>
+    </div>
+
+    <!-- Feature inputs -->
+    <div class="section-title">Input features</div>
+    <div class="features-grid">
+      {% for feature in features %}
+      <div class="feature-field">
+        <label>{{ feature }}</label>
+        <input type="number" step="any" id="feat_{{ feature }}" name="{{ feature }}"
+               value="{{ samples.get(feature, 0) | round(4) }}"/>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button class="predict-btn" id="pred-btn" onclick="runPredict()">&#128269;&nbsp; Analyse &amp; Predict Risk</button>
+    <button class="reset-btn" onclick="resetForm()">&#8617; Reset to median values</button>
+    <div class="error-box" id="err-box"></div>
+
+    <!-- ══ ANALYTICS SECTION ══ -->
+    <div style="margin-top:36px;">
+      <div class="section-title">Analytics &amp; Visualisations</div>
+
+      <!-- Row 1: Feature Importance + Class Distribution -->
+      <div class="charts-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+        <div class="chart-card">
+          <h3>Feature importance</h3>
+          <p>XGBoost — which indicators drive predictions</p>
+          <div style="position:relative;height:240px;">
+            <canvas id="chartImp"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Class distribution</h3>
+          <p>Dataset is perfectly balanced — no SMOTE required</p>
+          <div class="chart-legend">
+            <span><i style="background:#2f855a;"></i>Low risk — 2,499</span>
+            <span><i style="background:#c53030;"></i>High risk — 2,482</span>
+          </div>
+          <div style="position:relative;height:200px;">
+            <canvas id="chartDist"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: RSI Distribution full width -->
+      <div class="chart-card" style="margin-bottom:16px;">
+        <h3>RSI distribution by class</h3>
+        <p>Relative Strength Index spread across low-risk vs high-risk outcomes</p>
+        <div class="chart-legend">
+          <span><i style="background:#63b3ed;"></i>Low risk (0)</span>
+          <span style="display:flex;align-items:center;gap:5px;">
+            <span style="width:18px;height:0;border-top:2px dashed #fc8181;display:inline-block;"></span>
+            High risk (1)
+          </span>
+        </div>
+        <div style="position:relative;height:200px;">
+          <canvas id="chartRSI"></canvas>
+        </div>
+      </div>
+
+      <!-- Row 3: Model Metrics + Confidence Histogram -->
+      <div class="charts-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+        <div class="chart-card">
+          <h3>Model metrics — per class</h3>
+          <p>Precision, recall and F1-score for each predicted class</p>
+          <div class="chart-legend">
+            <span><i style="background:#2b6cb0;"></i>Low risk (0)</span>
+            <span><i style="background:#c53030;"></i>High risk (1)</span>
+          </div>
+          <div style="position:relative;height:200px;">
+            <canvas id="chartMetrics"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Prediction confidence histogram</h3>
+          <p>Distribution of the model's output probabilities across test data</p>
+          <div style="display:flex;gap:6px;margin-bottom:12px;">
+            <button class="conf-tab active" onclick="switchConfTab(0)">All</button>
+            <button class="conf-tab" onclick="switchConfTab(1)">High risk</button>
+            <button class="conf-tab" onclick="switchConfTab(2)">Low risk</button>
+          </div>
+          <div style="position:relative;height:170px;">
+            <canvas id="chartConf"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Static training plots -->
+      <div class="chart-card">
+        <h3>Model evaluation plots</h3>
+        <p>Generated automatically after training — confusion matrix, ROC curve, probability distribution</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">
+          <img src="/static/confusion_matrix.png" alt="Confusion Matrix"
+               style="flex:1;min-width:140px;border-radius:8px;border:1px solid #2d3748;"
+               onerror="this.style.display='none'"/>
+          <img src="/static/roc_curve.png" alt="ROC Curve"
+               style="flex:1;min-width:140px;border-radius:8px;border:1px solid #2d3748;"
+               onerror="this.style.display='none'"/>
+          <img src="/static/prob_dist.png" alt="Probability Distribution"
+               style="flex:1;min-width:140px;border-radius:8px;border:1px solid #2d3748;"
+               onerror="this.style.display='none'"/>
+        </div>
+      </div>
+
+    </div>
+    <!-- end analytics -->
+
+  </div>
+  <!-- end left -->
+
+  <!-- ══ RIGHT PANEL ══ -->
+  <div class="right">
+
+    <div class="section-title">Risk assessment gauge</div>
+    <div class="gauge-wrap">
+      <canvas id="gauge" width="240" height="130"></canvas>
+      <div class="result-badge neutral" id="result-badge">Awaiting prediction</div>
+      <div class="prob-row">
+        <div class="prob-item">
+          <div class="plbl">Low risk</div>
+          <div class="pval low-c" id="prob-low">—</div>
+        </div>
+        <div class="prob-item">
+          <div class="plbl">High risk</div>
+          <div class="pval high-c" id="prob-high">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- CHANGED: entire imp-bars block replaced with new credit features -->
+    <div class="section-title">Feature importance (model)</div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>PAY_0</span><span>32.18%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:100%"></div></div></div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>PAY_2</span><span>13.18%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:41%"></div></div></div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>SEX</span><span>11.30%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:35%"></div></div></div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>PAY_3</span><span>9.39%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:29%"></div></div></div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>MARRIAGE</span><span>7.22%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:22%"></div></div></div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>AGE</span><span>3.98%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:12%"></div></div></div>
+    <div class="imp-bar-wrap"><div class="imp-bar-label"><span>LIMIT_BAL</span><span>3.94%</span></div><div class="imp-bar-bg"><div class="imp-bar-fill" style="width:12%"></div></div></div>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Model configuration</div>
+    <div class="model-info-grid">
+      <div class="info-pill"><div class="k">Algorithm</div><div class="v">XGBoost</div></div>
+      <div class="info-pill"><div class="k">Estimators</div><div class="v">300</div></div>
+      <div class="info-pill"><div class="k">Max depth</div><div class="v">4</div></div>
+      <div class="info-pill"><div class="k">Learning rate</div><div class="v">0.05</div></div>
+      <div class="info-pill"><div class="k">Subsample</div><div class="v">0.8</div></div>
+      <div class="info-pill"><div class="k">Scaler</div><div class="v">StandardScaler</div></div>
+    </div>
+
+  </div>
+  <!-- end right -->
+
+</div>
+<!-- end main -->
+
+<!-- ══ ALL JAVASCRIPT ══ -->
+<script>
+const SAMPLES = {{ samples | tojson }};
+
+/* ── Gauge ── */
+function drawGauge(prob) {
+  const c   = document.getElementById('gauge');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 240, 130);
+  const cx = 120, cy = 118, r = 94, lw = 16;
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.strokeStyle = '#1a1f2e'; ctx.lineWidth = lw; ctx.stroke();
+  const frac  = Math.max(0, Math.min(1, prob));
+  const color = frac < 0.4 ? '#48bb78' : frac < 0.6 ? '#ECC94B' : '#fc8181';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + frac * Math.PI);
+  ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.stroke();
+  const angle = Math.PI + frac * Math.PI;
+  const nx = cx + (r - 10) * Math.cos(angle);
+  const ny = cy + (r - 10) * Math.sin(angle);
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(nx, ny);
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#e2e8f0'; ctx.fill();
+  ctx.font = 'bold 18px Segoe UI, Arial';
+  ctx.fillStyle = color; ctx.textAlign = 'center';
+  ctx.fillText((frac * 100).toFixed(1) + '%', cx, cy - 22);
+  ctx.font = '11px Segoe UI, Arial'; ctx.fillStyle = '#718096';
+  ctx.fillText('Low', cx - 80, cy + 16);
+  ctx.fillText('High', cx + 80, cy + 16);
+}
+drawGauge(0.5);
+
+/* ── Predict ── */
+async function runPredict() {
+  const btn = document.getElementById('pred-btn');
+  btn.textContent = 'Analysing...'; btn.disabled = true;
+  document.getElementById('err-box').style.display = 'none';
+  const data = {};
+  document.querySelectorAll('.feature-field input').forEach(inp => {
+    data[inp.name] = parseFloat(inp.value) || 0;
+  });
+  try {
+    const res    = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.error) {
+      const eb = document.getElementById('err-box');
+      eb.style.display = 'block';
+      eb.textContent = 'Error: ' + result.error;
+    } else {
+      const isHigh = result.prediction === 1;
+      const pHigh  = (result.prob_high * 100).toFixed(1);
+      const pLow   = (result.prob_low  * 100).toFixed(1);
+      drawGauge(result.prob_high);
+      const badge = document.getElementById('result-badge');
+      badge.textContent = isHigh ? 'HIGH RISK' : 'LOW RISK';
+      badge.className   = 'result-badge ' + (isHigh ? 'high' : 'low');
+      document.getElementById('prob-high').textContent = pHigh + '%';
+      document.getElementById('prob-low').textContent  = pLow  + '%';
+    }
+  } catch (err) {
+    const eb = document.getElementById('err-box');
+    eb.style.display = 'block';
+    eb.textContent = 'Network error: ' + err.message;
+  } finally {
+    btn.textContent = '\uD83D\uDD0D\u00A0 Analyse & Predict Risk';
+    btn.disabled = false;
+  }
+}
+
+/* ── Reset ── */
+function resetForm() {
+  Object.entries(SAMPLES).forEach(([k, v]) => {
+    const el = document.getElementById('feat_' + k);
+    if (el) el.value = v;
+  });
+  drawGauge(0.5);
+  document.getElementById('result-badge').textContent  = 'Awaiting prediction';
+  document.getElementById('result-badge').className    = 'result-badge neutral';
+  document.getElementById('prob-high').textContent     = '—';
+  document.getElementById('prob-low').textContent      = '—';
+  document.getElementById('err-box').style.display     = 'none';
+}
+
+/* ── Charts ── */
+(function () {
+  const gc  = 'rgba(255,255,255,0.06)';
+  const tc  = '#718096';
+  const bf  = { family: "'Segoe UI',Arial,sans-serif", size: 11 };
+
+  /* 1. Feature Importance */
+  new Chart(document.getElementById('chartImp'), {
+    type: 'bar',
+    data: {
+      labels: ['volume','RSI','MACD hist','MACD sig','BB std','MACD','low','high','close','open'],
+      datasets: [{
+        label: 'Importance %',
+        data:  [7.75, 7.27, 7.22, 6.74, 6.70, 6.42, 5.88, 5.72, 5.65, 5.64],
+        backgroundColor: ['#2b6cb0','#3182ce','#4299e1','#63b3ed','#63b3ed','#63b3ed','#90cdf4','#90cdf4','#90cdf4','#90cdf4'],
+        borderRadius: 4, borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => v.raw.toFixed(2) + '%' } } },
+      scales: {
+        x: { grid: { color: gc }, ticks: { color: tc, font: bf, callback: v => v + '%' }, border: { display: false } },
+        y: { grid: { display: false }, ticks: { color: '#a0aec0', font: bf }, border: { display: false } }
+      }
+    }
+  });
+
+  /* 2. Class Distribution */
+  new Chart(document.getElementById('chartDist'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Low risk (0)', 'High risk (1)'],
+      datasets: [{
+        data: [2499, 2482],
+        backgroundColor: ['#2f855a', '#c53030'],
+        borderColor:     ['#48bb78', '#fc8181'],
+        borderWidth: 2, hoverOffset: 10
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: v => `${v.label}: ${v.raw.toLocaleString()} (${((v.raw / 4981) * 100).toFixed(1)}%)` } }
+      }
+    }
+  });
+
+  /* 3. RSI Distribution */
+  const rsiX = [];
+  for (let i = 10; i <= 90; i += 4) rsiX.push(i);
+  function gauss(x, mu, sig) { return Math.exp(-0.5 * ((x - mu) / sig) ** 2) / (sig * Math.sqrt(2 * Math.PI)) * 100; }
+  new Chart(document.getElementById('chartRSI'), {
+    type: 'line',
+    data: {
+      labels: rsiX,
+      datasets: [
+        { label: 'Low risk',  data: rsiX.map(x => gauss(x, 48.5, 12)),   borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,0.12)',  borderWidth: 2, pointRadius: 0, fill: true, tension: 0.4 },
+        { label: 'High risk', data: rsiX.map(x => gauss(x, 48.6, 12.1)), borderColor: '#fc8181', backgroundColor: 'rgba(252,129,129,0.07)', borderWidth: 2, borderDash: [5, 4], pointRadius: 0, fill: true, tension: 0.4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        x: { grid: { color: gc }, ticks: { color: tc, font: bf }, border: { display: false }, title: { display: true, text: 'RSI value', color: tc, font: bf } },
+        y: { grid: { color: gc }, ticks: { color: tc, font: bf, callback: v => v.toFixed(1) }, border: { display: false }, title: { display: true, text: 'Density', color: tc, font: bf } }
+      }
+    }
+  });
+
+  /* 4. Model Metrics */
+  new Chart(document.getElementById('chartMetrics'), {
+    type: 'bar',
+    data: {
+      labels: ['Precision', 'Recall', 'F1-score'],
+      datasets: [
+        { label: 'Low risk (0)',  data: [0.50, 0.53, 0.51], backgroundColor: '#2b6cb0', borderRadius: 4, borderSkipped: false },
+        { label: 'High risk (1)', data: [0.49, 0.46, 0.47], backgroundColor: '#c53030', borderRadius: 4, borderSkipped: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => `${v.dataset.label}: ${v.raw.toFixed(2)}` } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#a0aec0', font: bf }, border: { display: false } },
+        y: { grid: { color: gc }, ticks: { color: tc, font: bf, callback: v => v.toFixed(1) }, max: 0.7, border: { display: false } }
+      }
+    }
+  });
+
+  /* 5. Confidence Histogram */
+  const buckets   = ['0.1','0.2','0.3','0.4','0.5','0.6','0.7','0.8','0.9'];
+  const tabData   = [
+    [18, 42, 88, 142, 178, 155, 115, 64, 22],
+    [ 9, 18, 38,  52, 108, 105,  98, 60, 20],
+    [ 9, 24, 50,  90,  70,  50,  17,  4,  2]
+  ];
+  const tabColors = ['#3182ce', '#c53030', '#2f855a'];
+
+  window._confChart = new Chart(document.getElementById('chartConf'), {
+    type: 'bar',
+    data: {
+      labels: buckets,
+      datasets: [{ label: 'Predictions', data: tabData[0], backgroundColor: '#3182ce', borderRadius: 3, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => `${v.raw} predictions` } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: tc, font: bf }, border: { display: false }, title: { display: true, text: 'Predicted probability', color: tc, font: bf } },
+        y: { grid: { color: gc },       ticks: { color: tc, font: bf }, border: { display: false }, title: { display: true, text: 'Count', color: tc, font: bf } }
+      }
+    }
+  });
+
+  window.switchConfTab = function (i) {
+    document.querySelectorAll('.conf-tab').forEach((t, j) => t.classList.toggle('active', i === j));
+    window._confChart.data.datasets[0].data            = tabData[i];
+    window._confChart.data.datasets[0].backgroundColor = tabColors[i];
+    window._confChart.update();
+  };
+})();
+</script>
+
+</body>
+</html>
